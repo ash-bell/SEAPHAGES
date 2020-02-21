@@ -33,3 +33,9 @@ glob
 os
 pandas v0.24.1
 subprocess
+
+
+## Work to be done
+Include ARAGORN the tRNA caller
+Include gggenes for gene annotation
+Include contigs name in DF as this is needed with multi-contig FASTA files

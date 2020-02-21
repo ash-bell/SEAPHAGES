@@ -51,7 +51,6 @@ def runGeneCallers(infile):
 		'''
 		Run the genecaller glimmer on the input FASTA file and output the gene calls in nuclotide format
 		as well as gene statistics. Also combine the renamed Glimmer genes to the gene statistics for later analysis.
-
 		Glimmer Flags Explained
 		-----------------------
 		long-orf : Find long, non-overlapping orfs to use as a training set.
@@ -238,6 +237,7 @@ def combineGeneClusters():
 
 	# merge all the DFs together
 	final = GeneMarkS2.merge(GeneMark, how="outer").merge(GeneMarkS, how='outer').merge(Glimmer, how='outer').merge(MGA, how='outer').merge(Prodigal, how='outer').merge(df, on="id")
+	final["Contig"] = 0
 
 	print(f"{bcolours.OKGREEN}Calculating Gene Length{bcolours.ENDC}")
 	# Calculate gene length because Glimmer uses a different system (3bp short)
@@ -274,7 +274,7 @@ def GeneOverlap(result_df, outfile, score):
 	If overlap is between 70 and 100 bps, -3 points
 	If overlap is larger then 100 bps, -inf points. (This is because genes that overlap by more that 100 bps have never been observed in nature).
 	This does not take into account if genes starting in the same location on the forward strand must have a 50bp gap between a gene starting in the same location on the reverse strand.
-		This is to account for the space needed for transcription factors to be encoded.
+	This is to account for the space needed for transcription factors to be encoded.
 	'''
 	# Create dfs by cluster size aka consenus
 	print(f"{bcolours.OKGREEN}Creating a penality system for genes that overlap{bcolours.ENDC}")
@@ -413,7 +413,7 @@ def GeneOverlap(result_df, outfile, score):
 	agree_1["overlap"] -= agree_1["length"]
 
 	# Merge the dataframes back together
-	results_df = agree_6.merge(agree_5, how="outer").merge(agree_4, how='outer').merge(agree_3, how='outer').merge(agree_2, how='outer').merge(agree_1, how='outer')
+	results_df = agree_6.merge(agree_5, how='outer').merge(agree_4, how='outer').merge(agree_3, how='outer').merge(agree_2, how='outer').merge(agree_1, how='outer')
 
 	# Create a an overlap scoring bin
 	print(f"{bcolours.OKGREEN}Penalising genes that overlap{bcolours.ENDC}")
@@ -451,8 +451,7 @@ def main(args):
 	renameGeneCalls()
 	getGeneStats()
 	runCD_hit()
-	combineGeneClusters()
-	GeneOverlap(combineGeneClusters(args.outfile))
+	GeneOverlap(combineGeneClusters(), args.outfile, args.score)
 
 if __name__=="__main__":
 	args = my_args()
