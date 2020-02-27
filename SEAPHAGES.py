@@ -6,6 +6,7 @@ import glob
 from Bio import SeqIO
 import pandas as pd
 import argparse
+from functools import reduce
 
 #import sys
 #from Bio import SeqIO
@@ -304,11 +305,12 @@ def GeneOverlap(result_df, outfile, score):
                         list_of_datasets[i]["operon"] += operon # update the operons in the original list at index i
                     else:
                         overlap.append(len(idx1.intersection(idx2)))
-                list_of_datasets[i]["overlap"] += overlap
-                overlap = []
-        list_of_datasets[i]["overlap"] -= list_of_datasets[i]["length"]
-
-    reduce(lambda x,y: pd.merge(x,y, how='outer'), list_of_datasets) # merge list of dataFrames
+                    list_of_datasets[i]["overlap"] += overlap
+                    overlap = []
+            list_of_datasets[i]["overlap"] -= list_of_datasets[i]["length"]
+            print(f"Dataset {i} done")
+        print(f"{bcolours.OKBLUE}list_of_datasets[i]{bcolours.ENDC}")
+        results_df = reduce(lambda x,y: pd.merge(x,y, how='outer'), list_of_datasets) # merge list of dataFrames
 
     # Create a an overlap scoring bin
     print(f"{bcolours.OKGREEN}Penalising genes that overlap{bcolours.ENDC}")
@@ -342,10 +344,10 @@ def execute(bash):
 
 
 def main(args):
-#   runGeneCallers(args.infile)
-#   renameGeneCalls()
-#   getGeneStats()
-#   runCD_hit()
+#    runGeneCallers(args.infile)
+#    renameGeneCalls()
+#    getGeneStats()
+#    runCD_hit()
     GeneOverlap(combineGeneClusters(), args.outfile, args.score)
 
 if __name__=="__main__":
