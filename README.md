@@ -28,14 +28,22 @@ https://cbcb.umd.edu/software/ELPH/
 
 ### Python Modules
 argparse v1.4.0
+
 BioPython v1.72
+
 glob
+
 os
+
 pandas v0.24.1
+
 subprocess
 
+functools
 
 ## Work to be done
 Include ARAGORN the tRNA caller
+
 Include gggenes for gene annotation
+
 Include contigs name in DF as this is needed with multi-contig FASTA files
