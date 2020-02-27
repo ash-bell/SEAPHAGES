@@ -280,41 +280,39 @@ def GeneOverlap(result_df, outfile, score):
     # Create dfs by cluster size aka consenus
     print(f"{bcolours.OKGREEN}Creating a penality system for genes that overlap{bcolours.ENDC}")
 
-    list_of_datasets = [result_df[result_df["clstr_size"] ==  i ].reset_index(drop=True) for i in reversed([n+1 for n in range(result_df["clstr_size"].max())])]
-    for i in range(len(list_of_datasets)): # 6 iterations required
-        for dataset in list_of_datasets[i:]: # iterate over datasets from i to the end (i increases by one each time making it shorter)
+    list_of_datasets = [result_df[result_df["clstr_size"] ==  i ].reset_index(drop=True) for i in reversed([n+1 for n in range(result_df["clstr_size"].max())])]#create a list of DFs by cluster size
+    for i in range(len(list_of_datasets)): # Loop through the overlap compare the number of times there are datasets
+        for dataset in list_of_datasets[i:]: # for each datasets in the main list of datasets, -1 each time as i increases by one each time making it shorter
             overlap = [] # set overlap counter to 0
             operon = [] # set operon counter to 0
             if "operon" in dataset and "overlap" in dataset:
-                list_of_datasets[i]["operon"] += 0 # Records operon bonus overlap, adding to its score it if it already exists
-                list_of_datasets[i]["overlap"] += 0 # Records overlap penalitye, adding to its score it if it already exists
+                list_of_datasets[i]["operon"] += 0 # Add to existing operon overlap score if it exists else
+                list_of_datasets[i]["overlap"] += 0 # Add to existing overlap overlap score if it exists else
             else:
-                list_of_datasets[i]["operon"] = 0 # However, if column doesn't exist create it
-                list_of_datasets[i]["overlap"] = 0 # However, if column doesn't exist create it
-            for idx, row in list_of_datasets[i].iterrows(): # iterate over the dataset at index i
-                for j, row in dataset.iterrows():
-                    idx1 = pd.Index(range(list_of_datasets[i][["Sstart", "Send"]].min(axis=1)[idx], list_of_datasets[i][["Sstart", "Send"]].max(axis=1)[idx]))
-                    idx2 = pd.Index(range(dataset[["Sstart", "Send"]].min(axis=1)[j], dataset[["Sstart", "Send"]].max(axis=1)[j]))
+                list_of_datasets[i]["operon"] = 0 # However, if operon column doesn't exist set it to 0
+                list_of_datasets[i]["overlap"] = 0 # However, if overlap column doesn't exist set it to 0
+            for index, row in dataset.iterrows(): # iterate over the dataset at index i
+                for j, row in list_of_datasets[i].iterrows():
+                    range1 = pd.Index(range(dataset[["Sstart", "Send"]].min(axis=1)[index], dataset[["Sstart", "Send"]].max(axis=1)[index]))
+                    range2 = pd.Index(range(list_of_datasets[i][["Sstart", "Send"]].min(axis=1)[j], list_of_datasets[i][["Sstart", "Send"]].max(axis=1)[j]))
                 # example testing if start of subject is greater than end of query
                 #   if dataset.Sstart[j] > list_of_datasets[i].Send[idx]:
                 #      break # should exit loop for this dataset and move onto the next one
                 #   else:
                 #        # indent the below code and continue processing
-                    if len(idx1.intersection(idx2)) == 1 or len(idx1.intersection(idx2)) == 4 or len(idx1.intersection(idx2)) == 8:
+                    if len(range1.intersection(range2)) == 1 or len(range1.intersection(range2)) == 4 or len(range1.intersection(range2)) == 8:
                         operon.append(1) # so count it as operon
                         list_of_datasets[i]["operon"] += operon # update the operons in the original list at index i
                     else:
-                        overlap.append(len(idx1.intersection(idx2)))
-                    list_of_datasets[i]["overlap"] += overlap
-                    overlap = []
-            list_of_datasets[i]["overlap"] -= list_of_datasets[i]["length"]
-            print(f"Dataset {i} done")
-        print(f"{bcolours.OKBLUE}list_of_datasets[i]{bcolours.ENDC}")
-        results_df = reduce(lambda x,y: pd.merge(x,y, how='outer'), list_of_datasets) # merge list of dataFrames
+                        overlap.append(len(range1.intersection(range2)))
+                list_of_datasets[i]["overlap"] += overlap
+                overlap = []
+            print(f'{bcolours.OKBLUE}Checking if genes with a cluster size of {len(list_of_datasets) - i} overlap with genes that have a cluster size of {dataset["clstr_size"][index]}{bcolours.ENDC}')
+    results_df = reduce(lambda x,y: pd.merge(x,y, how='outer'), list_of_datasets) # merge list of dataFrames
 
     # Create a an overlap scoring bin
     print(f"{bcolours.OKGREEN}Penalising genes that overlap{bcolours.ENDC}")
-    score_bins = [-99999, 10, 40, 70, 100, 99999]
+    score_bins = [-999999, 10, 40, 70, 100, 999999]
     penality = [0, -1, -2, -3, -99999]
     results_df["overlap_pen"] = pd.cut(results_df["overlap"], score_bins, labels=penality)
 
