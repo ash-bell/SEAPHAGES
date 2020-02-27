@@ -8,17 +8,13 @@ import pandas as pd
 import argparse
 from functools import reduce
 
-#import sys
-#from Bio import SeqIO
-#import pandas as pd
-
 def my_args():
     # Create argument parser
     parser = argparse.ArgumentParser(description = "Consenus Genecalling of a FASTA file")
 
     # Positional mandatory arguments
     parser.add_argument("--infile", "-i", dest = "infile", required = True, help = "Define the input FASTA file in nuclotide format")
-    parser.add_argument("--outfile", "-o", dest = "outfile", required = True, help = "Define the output .tsv file with consenus gene predictions")
+    parser.add_argument("--prefix", "-p", dest = "prefix", required = True, help = "Define the output prefix for the consenus gene predictions")
 
     # Optional arguments
     parser.add_argument('--score', "-s", dest = "score", default = 3, type = int, help = "The minimum score a gene needs to be included in the final DF. Default = 3")
@@ -195,7 +191,7 @@ def runCD_hit():
     Cluster = f"""cat *_reformatted.fa > Genecallers_combined.fa;
         cd-hit-est -i Genecallers_combined.fa -o cd-hit.out -c 0.95 -n 10 -s 0.9 -d 0;
         clstr2txt.pl cd-hit.out.clstr > Gene_clstr.txt;
-        rm cd-hit.out Genecallers_combined.fa cd-hit.out.clstr"""
+        rm cd-hit.out cd-hit.out.clstr"""
 
     stdout, stderr = execute(Cluster)
 
@@ -258,7 +254,7 @@ def combineGeneClusters():
 
     return result_df
 
-def GeneOverlap(result_df, outfile, score):
+def GeneOverlap(result_df, prefix, score):
     '''
     Calculate an overlap penality for each gene. However, only penalise genes with a lower gene cluster number.
     For example, a Gene that was found with all 6 genecallers should not be penalised if it overlaps with a gene that was only found with 1 genecaller.
@@ -328,10 +324,20 @@ def GeneOverlap(result_df, outfile, score):
     sorted_df = final_df.sort_values(by=["Sstart"]).reset_index(drop=True)
 
     # Save the sorted_df to file
-    print(f"{bcolours.OKGREEN}Gene statistics can be found here: {outfile}{bcolours.ENDC}")
-    sorted_df.to_csv(f"{outfile}", sep = "\t", index = None, header = True)
+    print(f"{bcolours.OKGREEN}Gene statistics can be found here: {prefix}_gene_stats.tsv{bcolours.ENDC}")
+    sorted_df.to_csv(f"{prefix}_gene_stats.tsv", sep = "\t", index = None, header = True)
 
-    return sorted_df
+
+def ConsenusGenecalls(prefix):
+    '''
+    Run the prodigal gene caller on the input FASTA file and output the gene calls in nuclotide format
+    as well as the gene statistics. Use meta as prodigal requires over 100K length sequences to be accurate.
+    Also combine the new prodigal gene names with the gene statistics for later analysis.
+    '''
+    Genes = f'for i in $(cut -f1 {prefix}_gene_stats.tsv); do echo $i | seqtk subseq Genecallers_combined.fa - >> {prefix}_seaphages.fna; done; rm Genecallers_combined.fa'
+    stdout, stderr = execute(Genes)
+    print(f"{bcolours.OKGREEN}Gene calls can be found here: {prefix}_seaphages.fna{bcolours.ENDC}")
+
 
 def execute(bash):
     process = subprocess.Popen(bash, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
@@ -342,11 +348,12 @@ def execute(bash):
 
 
 def main(args):
-#    runGeneCallers(args.infile)
-#    renameGeneCalls()
-#    getGeneStats()
-#    runCD_hit()
-    GeneOverlap(combineGeneClusters(), args.outfile, args.score)
+    runGeneCallers(args.infile)
+    renameGeneCalls()
+    getGeneStats()
+    runCD_hit()
+    GeneOverlap(combineGeneClusters(), args.prefix, args.score)
+    ConsenusGenecalls(args.prefix)
 
 if __name__=="__main__":
     args = my_args()
