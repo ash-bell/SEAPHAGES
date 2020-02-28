@@ -296,7 +296,8 @@ def GeneOverlap(result_df, prefix, score):
                 #      break # should exit loop for this dataset and move onto the next one
                 #   else:
                 #        # indent the below code and continue processing
-                    if len(range1.intersection(range2)) == 1 or len(range1.intersection(range2)) == 4 or len(range1.intersection(range2)) == 8:
+                    #if len(range1.intersection(range2)) == 1 or len(range1.intersection(range2)) == 4 or len(range1.intersection(range2)) == 8:
+                    if len(range1.intersection(range2)) in [1,4,8]:
                         operon.append(1) # so count it as operon
                         list_of_datasets[i]["operon"] += operon # update the operons in the original list at index i
                     else:
