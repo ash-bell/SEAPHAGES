@@ -151,9 +151,11 @@ def getGeneStats():
         grep ">" Prodigal_reformatted.fa | sed "s/>//g" | paste -d "\t" - Prodigal.trm.lst > Prodigal_genecalls.tsv;
         rm Prodigal.trm.lst Prodigal.lst;
         # Glimmer;
-        grep "^[^>]" Glimmer.lst | sed "s/-[1-3]/-/g; s/+[1-3]/+/g; s/ \+ /\t/g" > Glimmer.trm.lst # change strand number to + or - for standardisation vs other gene callers;
+        awk '/>/{{filename=NR"_glimmer.txt"}}; {{print >filename}}' Glimmer.lst;
+        for i in *_glimmer.txt; do sed "s/orf/$(grep ">" $i)\torf/g" $i | tail -n +2 | sed 's/>//g' >> Glimmer.lst2; done
+        sed "s/-[1-3]/-/g; s/+[1-3]/+/g; s/ \+ /\t/g" Glimmer.lst2 > Glimmer.trm.lst # change strand number to + or - for standardisation vs other gene callers;
         grep ">" Glimmer_reformatted.fa | sed "s/>//g" | paste -d "\t" - Glimmer.trm.lst > Glimmer_genecalls.tsv;
-        rm FINAL.detail run3.* Glimmer.lst Glimmer.trm.lst;
+        rm FINAL.detail run3.* Glimmer.lst Glimmer.trm.lst *_glimmer.txt Glimmer.lst2;
         # MGA;
         grep "^[^#]" MGA.out | cut -f1,2,3,4,7 > MGA.trm.lst
         grep ">" MGA_reformatted.fa | sed "s/>//g" | paste -d "\t" - MGA.trm.lst > MGA_genecalls.tsv
@@ -210,7 +212,7 @@ def combineGeneClusters():
     GeneMarkS2 = pd.read_csv('GeneMarkS2_genecalls.tsv', sep = "\t", names = ["id", "Sstart", "Send", "Gene_score", "Direction"], index_col=False)
     GeneMark = pd.read_csv('GeneMark_genecalls.tsv', sep = "\t", names = ["id", "Sstart", "Send"], index_col=False)
     GeneMarkS = pd.read_csv('GeneMarkS_genecalls.tsv', sep = "\t", names = ["id", "Sstart", "Send", "Gene_score", "Direction", "old_name"], index_col=False)
-    Glimmer = pd.read_csv('Glimmer_genecalls.tsv', sep = "\t", names = ["id", "old_name", "Sstart", "Send", "Direction", "Gene_score"], index_col=False)
+    Glimmer = pd.read_csv('Glimmer_genecalls.tsv', sep = "\t", names = ["id", "contig", "old_name", "Sstart", "Send", "Direction", "Gene_score"], index_col=False)
     MGA = pd.read_csv('MGA_genecalls.tsv', sep = "\t", names = ["id", "old_name", "Sstart", "Send", "Direction", "Gene_score"], index_col=False)
     Prodigal = pd.read_csv('Prodigal_genecalls.tsv', sep = "\t", names = ["id", "Contig", "Sstart", "Send", "Gene_score","Direction"], index_col=False)
     df = pd.read_csv("Gene_clstr.txt", sep = "\t")
@@ -225,7 +227,7 @@ def combineGeneClusters():
 
     # merge all the DFs together
     final = GeneMarkS2.merge(GeneMark, how="outer").merge(GeneMarkS, how='outer').merge(Glimmer, how='outer').merge(MGA, how='outer').merge(Prodigal, how='outer').merge(df, on="id")
-    final["Contig"] = 0
+    final["Contig"] = 0 # 0 because those wothout contig names mess everything up
 
     print(f"{col.colours.BGreen}Calculating Gene Length{col.colours.Colour_Off}")
     # Calculate gene length because Glimmer uses a different system (3bp short)

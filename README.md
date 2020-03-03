@@ -26,6 +26,10 @@ http://weizhongli-lab.org/cd-hit/
 ELPH (Estimated Locations of Pattern Hits) v1.0.1
 https://cbcb.umd.edu/software/ELPH/
 
+
+Seqtk v1.3-r106
+https://github.com/lh3/seqtk
+
 ### Python Modules
 argparse v1.4.0
 
