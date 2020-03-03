@@ -7,6 +7,7 @@ from Bio import SeqIO
 import pandas as pd
 import argparse
 from functools import reduce
+import python_colours as col
 
 def my_args():
     # Create argument parser
@@ -24,17 +25,8 @@ def my_args():
 
     return args
 
-class bcolours:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
 def runGeneCallers(infile):
+    print(f"{col.colours.BBlue}Running GeneCallers {col.colours.Colour_Off}")
     def runProdigal(infile):
         '''
         Run the prodigal gene caller on the input FASTA file and output the gene calls in nuclotide format
@@ -112,19 +104,18 @@ def runGeneCallers(infile):
         GeneMarkS2 = f'gms2.pl --seq {infile} --genome-type auto --output GeneMarkS2.lst --fnn GeneMarkS2.fnn --format gff'
         stdout, stderr = execute(GeneMarkS2)
 
-    print(f"{bcolours.HEADER}Running GeneCallers {bcolours.ENDC}")
     runProdigal(infile)
-    print(f"{bcolours.OKGREEN}Prodigal Complete! {bcolours.ENDC}")
+    print(f"{col.colours.BGreen}Prodigal Complete! {col.colours.Colour_Off}")
     runGlimmer(infile)
-    print(f"{bcolours.OKGREEN}Glimmer Complete! {bcolours.ENDC}")
+    print(f"{col.colours.BGreen}Glimmer Complete! {col.colours.Colour_Off}")
     runMGA(infile)
-    print(f"{bcolours.OKGREEN}MGA Complete! {bcolours.ENDC}")
+    print(f"{col.colours.BGreen}MGA Complete! {col.colours.Colour_Off}")
     runGeneMarkS(infile)
-    print(f"{bcolours.OKGREEN}GeneMarkS Complete! {bcolours.ENDC}")
+    print(f"{col.colours.BGreen}GeneMarkS Complete! {col.colours.Colour_Off}")
     runGeneMark(infile)
-    print(f"{bcolours.OKGREEN}GeneMark Complete! {bcolours.ENDC}")
+    print(f"{col.colours.BGreen}GeneMark Complete! {col.colours.Colour_Off}")
     runGeneMarkS2(infile)
-    print(f"{bcolours.OKGREEN}GeneMarkS2 Complete! {bcolours.ENDC}")
+    print(f"{col.colours.BGreen}GeneMarkS2 Complete! {col.colours.Colour_Off}")
 
 def renameGeneCalls():
     '''
@@ -148,13 +139,13 @@ def renameGeneCalls():
         SeqIO.write(results, os.path.basename(f).split(".fnn")[0] + "_reformatted.fa", 'fasta')
         df = pd.DataFrame(mappings, columns=['filename', 'old_id', 'new_id'])
         df.to_csv(os.path.basename(f).split(".fnn")[0] + "_mapping.tsv", sep='\t', index=False)
-    print(f"{bcolours.HEADER}Renamed the called genes into something more sensible {bcolours.ENDC}")
+    print(f"{col.colours.BPurple}Renamed the called genes into something more sensible {col.colours.Colour_Off}")
 
 def getGeneStats():
     '''
     Combine the renamed genes with their gene statistics for comparison between gene callers
     '''
-    print(f"{bcolours.HEADER}Collating the Gene Statistics into a list  {bcolours.ENDC}")
+    print(f"{col.colours.BPurple}Collating the Gene Statistics into a list  {col.colours.Colour_Off}")
     Stats = f"""# Prodigal;
         grep ^[^#] Prodigal.lst | cut -f1,4,5,6,7 > Prodigal.trm.lst;
         grep ">" Prodigal_reformatted.fa | sed "s/>//g" | paste -d "\t" - Prodigal.trm.lst > Prodigal_genecalls.tsv;
@@ -187,7 +178,7 @@ def runCD_hit():
     Run cd-hit, a protein clustering software to determine if genecalled proteins from different protein softwares are the infact the same gene.
     Clusters are defined as 0.95 percentage identity over 90% of the gene with word search size of 10 and take description of gene to first defline(a space)
     '''
-    print(f"{bcolours.HEADER}Clustering simular genes into groups to create consenus gene calling{bcolours.ENDC}")
+    print(f"{col.colours.BPurple}Clustering simular genes into groups to create consenus gene calling{col.colours.Colour_Off}")
     Cluster = f"""cat *_reformatted.fa > Genecallers_combined.fa;
         cd-hit-est -i Genecallers_combined.fa -o cd-hit.out -c 0.95 -n 10 -s 0.9 -d 0;
         clstr2txt.pl cd-hit.out.clstr > Gene_clstr.txt;
@@ -214,7 +205,7 @@ def combineGeneClusters():
     The representative of each cluster is chosen based on the highest score.
     If there is a tie, the first gene in the cluster is chosen. (First = position listed in the dataframe).
     '''
-    print(f"{bcolours.HEADER}Collating all genecalled genes from different algorithims together{bcolours.ENDC}")
+    print(f"{col.colours.BPurple}Collating all genecalled genes from different algorithims together{col.colours.Colour_Off}")
     #import DFs
     GeneMarkS2 = pd.read_csv('GeneMarkS2_genecalls.tsv', sep = "\t", names = ["id", "Sstart", "Send", "Gene_score", "Direction"], index_col=False)
     GeneMark = pd.read_csv('GeneMark_genecalls.tsv', sep = "\t", names = ["id", "Sstart", "Send"], index_col=False)
@@ -225,7 +216,7 @@ def combineGeneClusters():
     df = pd.read_csv("Gene_clstr.txt", sep = "\t")
 
     # normalise the genescores
-    print(f"{bcolours.HEADER}Normalising Gene Scores based on highest value{bcolours.ENDC}")
+    print(f"{col.colours.BPurple}Normalising Gene Scores based on highest value{col.colours.Colour_Off}")
     GeneMarkS2["normalised_gene_score"] = GeneMarkS2["Gene_score"]/max(GeneMarkS2["Gene_score"])
     GeneMarkS["normalised_gene_score"] = GeneMarkS["Gene_score"]/max(GeneMarkS["Gene_score"])
     Glimmer["normalised_gene_score"] = Glimmer["Gene_score"]/max(Glimmer["Gene_score"])
@@ -236,18 +227,18 @@ def combineGeneClusters():
     final = GeneMarkS2.merge(GeneMark, how="outer").merge(GeneMarkS, how='outer').merge(Glimmer, how='outer').merge(MGA, how='outer').merge(Prodigal, how='outer').merge(df, on="id")
     final["Contig"] = 0
 
-    print(f"{bcolours.OKGREEN}Calculating Gene Length{bcolours.ENDC}")
+    print(f"{col.colours.BGreen}Calculating Gene Length{col.colours.Colour_Off}")
     # Calculate gene length because Glimmer uses a different system (3bp short)
     final["length"] = final[["Sstart", "Send"]].max(axis=1) - final[["Sstart", "Send"]].min(axis=1)
 
     # Create length Penality
-    print(f"{bcolours.OKGREEN}Creating a Penality value for Short Genes{bcolours.ENDC}")
+    print(f"{col.colours.BGreen}Creating a Penality value for Short Genes{col.colours.Colour_Off}")
     score_bins = [0, 74, 89, 119, 149, 199, 99999]
     penality = [-999, -4, -3, -2, -1, 0]
     final["length_penality"] = pd.cut(final["length"], score_bins, labels=penality)
 
     # Create scoring system
-    print(f"{bcolours.OKGREEN}Creating an initial score of each gene to select the best gene within a cluster{bcolours.ENDC}")
+    print(f"{col.colours.BGreen}Creating an initial score of each gene to select the best gene within a cluster{col.colours.Colour_Off}")
     final["score"] = final[["normalised_gene_score", "clstr_size", "length_penality"]].sum(axis = 1) # + final.e_value # create score
     idx = final.groupby(by=final["clstr"])["score"].transform(max)==final["score"] # grp by cluster keep clstr representative by highest score
     result_df = final[idx].drop_duplicates(subset=['clstr'], keep='first') # remove duplicate clstr representative if same score
@@ -274,7 +265,7 @@ def GeneOverlap(result_df, prefix, score):
     This is to account for the space needed for transcription factors to be encoded.
     '''
     # Create dfs by cluster size aka consenus
-    print(f"{bcolours.OKGREEN}Creating a penality system for genes that overlap{bcolours.ENDC}")
+    print(f"{col.colours.BGreen}Creating a penality system for genes that overlap{col.colours.Colour_Off}")
 
     list_of_datasets = [result_df[result_df["clstr_size"] ==  i ].reset_index(drop=True) for i in reversed([n+1 for n in range(result_df["clstr_size"].max())])]#create a list of DFs by cluster size
     for i in range(len(list_of_datasets)): # Loop through the overlap compare the number of times there are datasets
@@ -304,28 +295,28 @@ def GeneOverlap(result_df, prefix, score):
                         overlap.append(len(range1.intersection(range2)))
                 list_of_datasets[i]["overlap"] += overlap
                 overlap = []
-            print(f'{bcolours.OKBLUE}Checking if genes with a cluster size of {len(list_of_datasets) - i} overlap with genes that have a cluster size of {dataset["clstr_size"][index]}{bcolours.ENDC}')
+            print(f'{col.colours.BBlue}Checking if genes with a cluster size of {len(list_of_datasets) - i} overlap with genes that have a cluster size of {dataset["clstr_size"][index]}{col.colours.Colour_Off}')
     results_df = reduce(lambda x,y: pd.merge(x,y, how='outer'), list_of_datasets) # merge list of dataFrames
 
     # Create a an overlap scoring bin
-    print(f"{bcolours.OKGREEN}Penalising genes that overlap{bcolours.ENDC}")
+    print(f"{col.colours.BGreen}Penalising genes that overlap{col.colours.Colour_Off}")
     score_bins = [-999999, 10, 40, 70, 100, 999999]
     penality = [0, -1, -2, -3, -99999]
     results_df["overlap_pen"] = pd.cut(results_df["overlap"], score_bins, labels=penality)
 
     # Create a total scoring system based on the previous scoring system plus the operon and overlap penality
-    print(f"{bcolours.OKGREEN}Creating the final scoring system for representative genes of each cluster{bcolours.ENDC}")
+    print(f"{col.colours.BGreen}Creating the final scoring system for representative genes of each cluster{col.colours.Colour_Off}")
     results_df["total_score"] = results_df[["overlap_pen", "operon", "score"]].sum(axis = 1)
 
     # Only include the gene if the score is greater than 3
-    print(f"{bcolours.OKGREEN}Only keeping genes with a score higher then {score}{bcolours.ENDC}")
+    print(f"{col.colours.BGreen}Only keeping genes with a score higher then {score}{col.colours.Colour_Off}")
     final_df = results_df[results_df["total_score"] >= score]
 
     # Sort the dataframe by gene start
     sorted_df = final_df.sort_values(by=["Sstart"]).reset_index(drop=True)
 
     # Save the sorted_df to file
-    print(f"{bcolours.OKGREEN}Gene statistics can be found here: {prefix}_gene_stats.tsv{bcolours.ENDC}")
+    print(f"{col.colours.BGreen}Gene statistics can be found here: {prefix}_gene_stats.tsv{col.colours.Colour_Off}")
     sorted_df.to_csv(f"{prefix}_gene_stats.tsv", sep = "\t", index = None, header = True)
 
 
@@ -337,7 +328,7 @@ def ConsenusGenecalls(prefix):
     '''
     Genes = f'for i in $(cut -f1 {prefix}_gene_stats.tsv); do echo $i | seqtk subseq Genecallers_combined.fa - >> {prefix}_seaphages.fna; done; rm Genecallers_combined.fa'
     stdout, stderr = execute(Genes)
-    print(f"{bcolours.OKGREEN}Gene calls can be found here: {prefix}_seaphages.fna{bcolours.ENDC}")
+    print(f"{col.colours.BGreen}Gene calls can be found here: {prefix}_seaphages.fna{col.colours.Colour_Off}")
 
 
 def execute(bash):
