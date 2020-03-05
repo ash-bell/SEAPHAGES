@@ -13,7 +13,6 @@ MGA (MetaGeneAnnotator) 2008/8/19
 http://metagene.nig.ac.jp/
 
 
-GeneMark v2.5m
 GeneMarkS v4.6b
 GeneMarkS2 v1.10
 http://exon.gatech.edu/GeneMark/
@@ -29,6 +28,9 @@ https://cbcb.umd.edu/software/ELPH/
 
 Seqtk v1.3-r106
 https://github.com/lh3/seqtk
+
+PHANOTATE v1.2.2
+https://github.com/deprekate/PHANOTATE
 
 ### Python Modules
 argparse v1.4.0
@@ -46,8 +48,8 @@ subprocess
 functools
 
 ## Work to be done
-Include ARAGORN the tRNA caller
+Include ARAGORN/ teRNAse / a tRNA caller
 
 Include gggenes for gene annotation
 
-Include contigs name in DF as this is needed with multi-contig FASTA files
+Loop break when comparing different contigs in gene overlap

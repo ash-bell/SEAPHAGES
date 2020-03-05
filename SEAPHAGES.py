@@ -92,7 +92,7 @@ def runGeneCallers(infile):
         output the gene calls in nuclotide format as well as the gene caller statistics. Also combine the renamed
         GeneMark genes to the gene statistics for later analysis
         '''
-        GeneMark = f'gm -onq -loq -m GeneMark_heuristic.mat -D {infile}; mv {infile}.orf GeneMark.fnn'
+        GeneMark = f'gm -onq -loq -m *.mat -D {infile}; mv {infile}.orf GeneMark.fnn'
         stdout, stderr = execute(GeneMark)
 
     def runGeneMarkS2(infile):
@@ -104,6 +104,12 @@ def runGeneCallers(infile):
         GeneMarkS2 = f'gms2.pl --seq {infile} --genome-type auto --output GeneMarkS2.lst --fnn GeneMarkS2.fnn --format gff'
         stdout, stderr = execute(GeneMarkS2)
 
+    def runPHANOTATE(infile):
+        '''
+        '''
+        PHANOTATE = f"""phanotate.py {infile} -o PHANOTATE.out; awk '!/#/ {{print "gene_"NR-2"\t", $0}}' PHANOTATE.out > PHANOTATE.lst; extract HTVC010P_reformatted.fasta PHANOTATE.lst > PHANOTATE.fnn;"""
+        stdout, stderr = execute(PHANOTATE)
+
     runProdigal(infile)
     print(f"{col.colours.BGreen}Prodigal Complete! {col.colours.Colour_Off}")
     runGlimmer(infile)
@@ -112,10 +118,12 @@ def runGeneCallers(infile):
     print(f"{col.colours.BGreen}MGA Complete! {col.colours.Colour_Off}")
     runGeneMarkS(infile)
     print(f"{col.colours.BGreen}GeneMarkS Complete! {col.colours.Colour_Off}")
-    runGeneMark(infile)
-    print(f"{col.colours.BGreen}GeneMark Complete! {col.colours.Colour_Off}")
+    #runGeneMark(infile)
+    #print(f"{col.colours.BGreen}GeneMark Complete! {col.colours.Colour_Off}")
     runGeneMarkS2(infile)
     print(f"{col.colours.BGreen}GeneMarkS2 Complete! {col.colours.Colour_Off}")
+    runPHANOTATE(infile)
+    print(f"{col.colours.BGreen}PHANOTATE Complete! {col.colours.Colour_Off}")
 
 def renameGeneCalls():
     '''
@@ -157,21 +165,27 @@ def getGeneStats():
         grep ">" Glimmer_reformatted.fa | sed "s/>//g" | paste -d "\t" - Glimmer.trm.lst > Glimmer_genecalls.tsv;
         rm FINAL.detail run3.* Glimmer.lst Glimmer.trm.lst *_glimmer.txt Glimmer.lst2;
         # MGA;
-        grep "^[^#]" MGA.out | cut -f1,2,3,4,7 > MGA.trm.lst
+        egrep -v "# gc|# self" MGA.out | awk '/# /{{filename=NR"_mga.txt"}}; {{print >filename}}'
+        for i in *_mga.txt; do sed "s/gene_/$(grep "# " $i)\tgene_/g" $i | tail -n +2 | sed 's/# //g' >> MGA.lst2; done
+        cut -f1,2,3,4,5,8,12 MGA.lst2 > MGA.trm.lst
         grep ">" MGA_reformatted.fa | sed "s/>//g" | paste -d "\t" - MGA.trm.lst > MGA_genecalls.tsv
-        rm MGA.out MGA.trm.lst;
+        rm MGA.out MGA.trm.lst *_mga.txt MGA.lst2;
         # GeneMarkS
-        grep "^[^#]" HTVC010P_reformatted.fasta.gff | cut -f4,5,6,7,9 > GeneMarkS.trm.lst;
+        grep "^[^#]" HTVC010P_reformatted.fasta.gff | cut -f1,4,5,6,7 > GeneMarkS.trm.lst;
         grep ">" GeneMarkS_reformatted.fa | sed "s/>//g" | paste -d "\t" - GeneMarkS.trm.lst > GeneMarkS_genecalls.tsv;
         rm GeneMark_hmm_heuristic.mod GeneMarkS.trm.lst gms.log HTVC010P_reformatted.fasta.gff;
         # GeneMark
-        grep ">" GeneMark.fnn | grep -o ',.*$' | sed 's/, //g; s/ - /\t/g; s/)//g' > GeneMark_sstart_send.tsv;
-        grep ">" GeneMark_reformatted.fa | sed "s/>//g" | paste -d "\t" - GeneMark_sstart_send.tsv > GeneMark_genecalls.tsv;
-        rm GeneMark_heuristic.mat GeneMark_sstart_send.tsv HTVC010P_reformatted.fasta.gdata HTVC010P_reformatted.fasta.ldata HTVC010P_reformatted.fasta.lst;
+        # grep ">" GeneMark.fnn | grep -o ',.*$' | sed 's/, //g; s/ - /\t/g; s/)//g' > GeneMark_sstart_send.tsv;
+        # grep ">" GeneMark_reformatted.fa | sed "s/>//g" | paste -d "\t" - GeneMark_sstart_send.tsv > GeneMark_genecalls.tsv;
+        rm GeneMark_heuristic.mat;
+        # rm GeneMark_sstart_send.tsv HTVC010P_reformatted.fasta.gdata HTVC010P_reformatted.fasta.ldata HTVC010P_reformatted.fasta.lst;
         # GeneMarkS2
-        grep "^[^#]" GeneMarkS2.lst | cut -f4,5,6,7 > GeneMarkS2.trm.lst;
+        grep "^[^#]" GeneMarkS2.lst | cut -f1,4,5,6,7 > GeneMarkS2.trm.lst;
         grep ">" GeneMarkS2_reformatted.fa | sed "s/>//g" | paste -d "\t" - GeneMarkS2.trm.lst > GeneMarkS2_genecalls.tsv;
-        rm GMS2.mod GeneMarkS2.trm.lst GeneMarkS2.lst log"""
+        rm GMS2.mod GeneMarkS2.trm.lst GeneMarkS2.lst log
+        # PHANOTATE;
+        grep ">" PHANOTATE_reformatted.fa | sed "s/>//g" | paste -d "\t" - PHANOTATE.lst | cut -f1,3,4,5,6,7 > PHANOTATE_genecalls.tsv;
+        rm PHANOTATE.lst PHANOTATE.out"""
 
     stdout, stderr = execute(Stats)
 
@@ -209,12 +223,13 @@ def combineGeneClusters():
     '''
     print(f"{col.colours.BPurple}Collating all genecalled genes from different algorithims together{col.colours.Colour_Off}")
     #import DFs
-    GeneMarkS2 = pd.read_csv('GeneMarkS2_genecalls.tsv', sep = "\t", names = ["id", "Sstart", "Send", "Gene_score", "Direction"], index_col=False)
-    GeneMark = pd.read_csv('GeneMark_genecalls.tsv', sep = "\t", names = ["id", "Sstart", "Send"], index_col=False)
-    GeneMarkS = pd.read_csv('GeneMarkS_genecalls.tsv', sep = "\t", names = ["id", "Sstart", "Send", "Gene_score", "Direction", "old_name"], index_col=False)
+    GeneMarkS2 = pd.read_csv('GeneMarkS2_genecalls.tsv', sep = "\t", names = ["id", "contig", "Sstart", "Send", "Gene_score", "Direction"], index_col=False)
+    #GeneMark = pd.read_csv('GeneMark_genecalls.tsv', sep = "\t", names = ["id", "Sstart", "Send"], index_col=False)
+    GeneMarkS = pd.read_csv('GeneMarkS_genecalls.tsv', sep = "\t", names = ["id", "contig","Sstart", "Send", "Gene_score", "Direction"], index_col=False)
     Glimmer = pd.read_csv('Glimmer_genecalls.tsv', sep = "\t", names = ["id", "contig", "old_name", "Sstart", "Send", "Direction", "Gene_score"], index_col=False)
-    MGA = pd.read_csv('MGA_genecalls.tsv', sep = "\t", names = ["id", "old_name", "Sstart", "Send", "Direction", "Gene_score"], index_col=False)
-    Prodigal = pd.read_csv('Prodigal_genecalls.tsv', sep = "\t", names = ["id", "Contig", "Sstart", "Send", "Gene_score","Direction"], index_col=False)
+    MGA = pd.read_csv('MGA_genecalls.tsv', sep = "\t", names = ["id", "contig", "old_name", "Sstart", "Send", "Direction", "Gene_score", "rbs_score"], index_col=False)
+    Prodigal = pd.read_csv('Prodigal_genecalls.tsv', sep = "\t", names = ["id", "contig", "Sstart", "Send", "Gene_score","Direction"], index_col=False)
+    PHANOTATE = pd.read_csv('PHANOTATE_genecalls.tsv', sep = "\t", names = ["id", "Sstart", "Send", "Direction", "contig", "Gene_score"], index_col=False)
     df = pd.read_csv("Gene_clstr.txt", sep = "\t")
 
     # normalise the genescores
@@ -224,10 +239,12 @@ def combineGeneClusters():
     Glimmer["normalised_gene_score"] = Glimmer["Gene_score"]/max(Glimmer["Gene_score"])
     MGA["normalised_gene_score"] = MGA["Gene_score"]/max(MGA["Gene_score"])
     Prodigal["normalised_gene_score"] = Prodigal["Gene_score"]/max(Prodigal["Gene_score"])
+    PHANOTATE["normalised_gene_score"] = PHANOTATE["Gene_score"]/min(PHANOTATE["Gene_score"])
 
     # merge all the DFs together
-    final = GeneMarkS2.merge(GeneMark, how="outer").merge(GeneMarkS, how='outer').merge(Glimmer, how='outer').merge(MGA, how='outer').merge(Prodigal, how='outer').merge(df, on="id")
-    final["Contig"] = 0 # 0 because those wothout contig names mess everything up
+    final = GeneMarkS2.merge(PHANOTATE, how="outer").merge(GeneMarkS, how='outer').merge(Glimmer, how='outer').merge(MGA, how='outer').merge(Prodigal, how='outer').merge(df, on="id")#.merge(GeneMark, how = "outer")
+    #final["Contig"] = 0 # 0 because those without contig names mess everything up
+    final["rbs_score"] = 0 # 0 because those without an rbs_score will mess everything up
 
     print(f"{col.colours.BGreen}Calculating Gene Length{col.colours.Colour_Off}")
     # Calculate gene length because Glimmer uses a different system (3bp short)
@@ -244,7 +261,6 @@ def combineGeneClusters():
     final["score"] = final[["normalised_gene_score", "clstr_size", "length_penality"]].sum(axis = 1) # + final.e_value # create score
     idx = final.groupby(by=final["clstr"])["score"].transform(max)==final["score"] # grp by cluster keep clstr representative by highest score
     result_df = final[idx].drop_duplicates(subset=['clstr'], keep='first') # remove duplicate clstr representative if same score
-
     return result_df
 
 def GeneOverlap(result_df, prefix, score):
@@ -337,7 +353,7 @@ def execute(bash):
     process = subprocess.Popen(bash, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (stdout, stderr) = process.communicate()
 
-#   print(stdout.decode("utf-8"), stderr.decode("utf-8")) # this should go to a log file instead
+#    print(stdout.decode("utf-8"), stderr.decode("utf-8")) # this should go to a log file instead
     return stdout, stderr
 
 
