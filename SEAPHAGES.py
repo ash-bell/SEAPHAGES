@@ -107,7 +107,7 @@ def runGeneCallers(infile):
     def runPHANOTATE(infile):
         '''
         '''
-        PHANOTATE = f"""phanotate.py {infile} -o PHANOTATE.out; awk '!/#/ {{print "gene_"NR-2"\t", $0}}' PHANOTATE.out > PHANOTATE.lst; extract HTVC010P_reformatted.fasta PHANOTATE.lst > PHANOTATE.fnn;"""
+        PHANOTATE = f"""phanotate.py {infile} -o PHANOTATE.out; awk '!/#/ {{print "gene_"NR-2"\t", $0}}' PHANOTATE.out > PHANOTATE.lst; extract {infile} PHANOTATE.lst > PHANOTATE.fnn;"""
         stdout, stderr = execute(PHANOTATE)
 
     runProdigal(infile)
@@ -149,7 +149,7 @@ def renameGeneCalls():
         df.to_csv(os.path.basename(f).split(".fnn")[0] + "_mapping.tsv", sep='\t', index=False)
     print(f"{col.colours.BPurple}Renamed the called genes into something more sensible {col.colours.Colour_Off}")
 
-def getGeneStats():
+def getGeneStats(infile):
     '''
     Combine the renamed genes with their gene statistics for comparison between gene callers
     '''
@@ -171,14 +171,14 @@ def getGeneStats():
         grep ">" MGA_reformatted.fa | sed "s/>//g" | paste -d "\t" - MGA.trm.lst > MGA_genecalls.tsv
         rm MGA.out MGA.trm.lst *_mga.txt MGA.lst2;
         # GeneMarkS
-        grep "^[^#]" HTVC010P_reformatted.fasta.gff | cut -f1,4,5,6,7 > GeneMarkS.trm.lst;
+        grep "^[^#]" {infile}.gff | cut -f1,4,5,6,7 > GeneMarkS.trm.lst;
         grep ">" GeneMarkS_reformatted.fa | sed "s/>//g" | paste -d "\t" - GeneMarkS.trm.lst > GeneMarkS_genecalls.tsv;
-        rm GeneMark_hmm_heuristic.mod GeneMarkS.trm.lst gms.log HTVC010P_reformatted.fasta.gff;
+        rm GeneMark_hmm_heuristic.mod GeneMarkS.trm.lst gms.log {infile}.gff;
         # GeneMark
         # grep ">" GeneMark.fnn | grep -o ',.*$' | sed 's/, //g; s/ - /\t/g; s/)//g' > GeneMark_sstart_send.tsv;
         # grep ">" GeneMark_reformatted.fa | sed "s/>//g" | paste -d "\t" - GeneMark_sstart_send.tsv > GeneMark_genecalls.tsv;
         rm GeneMark_heuristic.mat;
-        # rm GeneMark_sstart_send.tsv HTVC010P_reformatted.fasta.gdata HTVC010P_reformatted.fasta.ldata HTVC010P_reformatted.fasta.lst;
+        # rm GeneMark_sstart_send.tsv {infile}.gdata {infile}.ldata {infile}.lst;
         # GeneMarkS2
         grep "^[^#]" GeneMarkS2.lst | cut -f1,4,5,6,7 > GeneMarkS2.trm.lst;
         grep ">" GeneMarkS2_reformatted.fa | sed "s/>//g" | paste -d "\t" - GeneMarkS2.trm.lst > GeneMarkS2_genecalls.tsv;
@@ -243,7 +243,6 @@ def combineGeneClusters():
 
     # merge all the DFs together
     final = GeneMarkS2.merge(PHANOTATE, how="outer").merge(GeneMarkS, how='outer').merge(Glimmer, how='outer').merge(MGA, how='outer').merge(Prodigal, how='outer').merge(df, on="id")#.merge(GeneMark, how = "outer")
-    #final["Contig"] = 0 # 0 because those without contig names mess everything up
     final["rbs_score"] = 0 # 0 because those without an rbs_score will mess everything up
 
     print(f"{col.colours.BGreen}Calculating Gene Length{col.colours.Colour_Off}")
@@ -313,7 +312,11 @@ def GeneOverlap(result_df, prefix, score):
                         overlap.append(len(range1.intersection(range2)))
                 list_of_datasets[i]["overlap"] += overlap
                 overlap = []
-            print(f'{col.colours.BBlue}Checking if genes with a cluster size of {len(list_of_datasets) - i} overlap with genes that have a cluster size of {dataset["clstr_size"][index]}{col.colours.Colour_Off}')
+            list_of_datasets[i]["overlap"] -= list_of_datasets[i]["length"]
+            try:
+                print(f'{col.colours.BBlue}Checking if genes with a cluster size of {len(list_of_datasets) - i} overlap with genes that have a cluster size of {dataset["clstr_size"].iloc[0]}{col.colours.Colour_Off}')
+            except:
+                pass
     results_df = reduce(lambda x,y: pd.merge(x,y, how='outer'), list_of_datasets) # merge list of dataFrames
 
     # Create a an overlap scoring bin
@@ -340,9 +343,6 @@ def GeneOverlap(result_df, prefix, score):
 
 def ConsenusGenecalls(prefix):
     '''
-    Run the prodigal gene caller on the input FASTA file and output the gene calls in nuclotide format
-    as well as the gene statistics. Use meta as prodigal requires over 100K length sequences to be accurate.
-    Also combine the new prodigal gene names with the gene statistics for later analysis.
     '''
     Genes = f'for i in $(cut -f1 {prefix}_gene_stats.tsv); do echo $i | seqtk subseq Genecallers_combined.fa - >> {prefix}_seaphages.fna; done; rm Genecallers_combined.fa'
     stdout, stderr = execute(Genes)
@@ -360,7 +360,7 @@ def execute(bash):
 def main(args):
     runGeneCallers(args.infile)
     renameGeneCalls()
-    getGeneStats()
+    getGeneStats(args.infile)
     runCD_hit()
     GeneOverlap(combineGeneClusters(), args.prefix, args.score)
     ConsenusGenecalls(args.prefix)
