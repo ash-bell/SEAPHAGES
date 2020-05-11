@@ -9,25 +9,33 @@ import argparse
 from functools import reduce
 from itertools import groupby
 import python_colours as col
+import multiprocessing
+
 
 def my_args():
     # Create argument parser
-    parser = argparse.ArgumentParser(description = "Consenus Genecalling of a FASTA file")
+    parser = argparse.ArgumentParser(
+        description="Consenus Genecalling of a FASTA file")
 
     # Positional mandatory arguments
-    parser.add_argument("--infile", "-i", dest = "infile", required = True, help = "Define the input FASTA file in nuclotide format")
-    parser.add_argument("--prefix", "-p", dest = "prefix", required = True, help = "Define the output prefix for the consenus gene predictions")
+    parser.add_argument("--infile", "-i", dest="infile", required=True,
+                        help="Define the input FASTA file in nuclotide format")
+    parser.add_argument("--prefix", "-p", dest="prefix", required=True,
+                        help="Define the output prefix for the consenus gene predictions")
 
     # Optional arguments
-    parser.add_argument('--score', "-s", dest = "score", default = 3, type = int, help = "The minimum score a gene needs to be included in the final DF. Default = 3")
+    parser.add_argument('--score', "-s", dest="score", default=3, type=int,
+                        help="The minimum score a gene needs to be included in the final DF. Default = 3")
 
     # Parse arguments
     args = parser.parse_args()
 
     return args
 
+
 def runGeneCallers(infile):
     print(f"{col.colours.BBlue}Running GeneCallers {col.colours.Colour_Off}")
+
     def SplitByContig(infile):
         '''
         File is split by contig to ensure overlap function doesn't mistake different contigs for the same genes.
@@ -94,7 +102,6 @@ def runGeneCallers(infile):
         MGA = f'for i in *_testing.fa; do mga $i -s > $(basename $i .fa)_MGA.lst; extract $i $(basename $i .fa)_MGA.lst > $(basename $i .fa)_MGA.fnn; done'
         stdout, stderr = execute(MGA)
 
-
     def runGeneMarkS():
         '''
         Run the gene caller GeneMarkS on the input FASTA file to create the .mat file for GeneMark and
@@ -109,7 +116,7 @@ def runGeneCallers(infile):
             done"""
         stdout, stderr = execute(GeneMarkS)
 
-    #def runGeneMark(infile):
+    # def runGeneMark(infile):
     #    '''
     #    Run the gene caller GeneMark on the input FASTA file and the .mat file from GeneMarkS and
     #    output the gene calls in nuclotide format as well as the gene caller statistics. Also combine the renamed
@@ -147,14 +154,18 @@ def runGeneCallers(infile):
             done"""
         stdout, stderr = execute(PHANOTATE)
 
-    SplitByContig(infile)
+    p1 = multiprocessing.Process(target=SplitByContig, args=(infile,))
+    p1.start()
+    p1.join()
+
     runProdigal()
     runGlimmer()
     runMGA()
     runGeneMarkS()
-    #runGeneMark(infile)
+    # runGeneMark(infile)
     runGeneMarkS2()
     runPHANOTATE()
+
 
 def renameGeneCalls():
     '''
@@ -163,7 +174,8 @@ def renameGeneCalls():
     '''
     print(f"{col.colours.BPurple}Renaming the called genes into something more sensible {col.colours.Colour_Off}")
 
-    file_list = glob.glob("*.fnn") # this needs to be renamed specifically for this files ["GeneMarkS2.fnn", "GeneMark.fnn", "GeneMarkS.fnn", "Glimmer.fnn", "Prodigal.fnn", "MGA.fnn"] located in the CWD.
+    # this needs to be renamed specifically for this files ["GeneMarkS2.fnn", "GeneMark.fnn", "GeneMarkS.fnn", "Glimmer.fnn", "Prodigal.fnn", "MGA.fnn"] located in the CWD.
+    file_list = glob.glob("*.fnn")
     for f in file_list:
         results = []
         mappings = []
@@ -175,11 +187,14 @@ def renameGeneCalls():
             record.name = ""
             record.description = ""
             results.append(record)
-            counter +=1
+            counter += 1
 
-        SeqIO.write(results, os.path.basename(f).split(".fnn")[0] + "_reformatted.fa", 'fasta')
+        SeqIO.write(results, os.path.basename(f).split(
+            ".fnn")[0] + "_reformatted.fa", 'fasta')
         df = pd.DataFrame(mappings, columns=['filename', 'old_id', 'new_id'])
-        df.to_csv(os.path.basename(f).split(".fnn")[0] + "_mapping.tsv", sep='\t', index=False)
+        df.to_csv(os.path.basename(f).split(".fnn")[
+                  0] + "_mapping.tsv", sep='\t', index=False)
+
 
 def getGeneStats(infile):
     '''
@@ -234,6 +249,7 @@ def getGeneStats(infile):
 
     stdout, stderr = execute(Stats)
 
+
 def runCD_hit(infile):
     '''
     Run cd-hit, a protein clustering software to determine if genecalled proteins from different protein softwares are the infact the same gene.
@@ -251,6 +267,7 @@ def runCD_hit(infile):
         done"""
 
     stdout, stderr = execute(Cluster)
+
 
 def combineGeneClusters():
     '''
@@ -272,56 +289,79 @@ def combineGeneClusters():
     If there is a tie, the first gene in the cluster is chosen. (First = position listed in the dataframe).
     '''
     print(f"{col.colours.BPurple}Collating all genecalled genes from different algorithims together{col.colours.Colour_Off}")
-    #import DFs
+#    import DFs
     file_list = glob.glob('*testing*')
     file_list.sort()
 
     clusters = glob.glob('*_Genecallers_combined_clstr.txt')
     clusters.sort()
 
-    contig_list = [list(i) for j, i in groupby(file_list, lambda a: a.split('_')[0])]
+    contig_list = [list(i) for j, i in groupby(
+        file_list, lambda a: a.split('_')[0])]
 
     for i in range(len(contig_list)):
-        GeneMarkS2 = pd.read_csv(contig_list[i][1], sep = "\t", names = ["id", "contig", "Sstart", "Send", "Gene_score", "Direction"], index_col=False)
-        #GeneMark = pd.read_csv('GeneMark_genecalls.tsv', sep = "\t", names = ["id", "Sstart", "Send"], index_col=False)
-        GeneMarkS = pd.read_csv(contig_list[i][2], sep = "\t", names = ["id", "contig","Sstart", "Send", "Gene_score", "Direction"], index_col=False)
-        Glimmer = pd.read_csv(contig_list[i][3], sep = "\t", names = ["id", "contig", "old_name", "Sstart", "Send", "Direction", "Gene_score"], index_col=False)
-        MGA = pd.read_csv(contig_list[i][4], sep = "\t", names = ["id", "contig", "old_name", "Sstart", "Send", "Direction", "Gene_score", "rbs_score"], index_col=False)
-        PHANOTATE = pd.read_csv(contig_list[i][5], sep = "\t", names = ["id", "Sstart", "Send", "Direction", "contig", "Gene_score"], index_col=False)
-        Prodigal = pd.read_csv(contig_list[i][6], sep = "\t", names = ["id", "contig", "Sstart", "Send", "Gene_score","Direction"], index_col=False)
-        df = pd.read_csv(clusters[i], sep = "\t")
+        GeneMarkS2 = pd.read_csv(contig_list[i][1], sep="\t", names=[
+                                 "id", "contig", "Sstart", "Send", "Gene_score", "Direction"], index_col=False)
+#        GeneMark = pd.read_csv('GeneMark_genecalls.tsv', sep = "\t", names = ["id", "Sstart", "Send"], index_col=False)
+        GeneMarkS = pd.read_csv(contig_list[i][2], sep="\t", names=[
+                                "id", "contig", "Sstart", "Send", "Gene_score", "Direction"], index_col=False)
+        Glimmer = pd.read_csv(contig_list[i][3], sep="\t", names=[
+                              "id", "contig", "old_name", "Sstart", "Send", "Direction", "Gene_score"], index_col=False)
+        MGA = pd.read_csv(contig_list[i][4], sep="\t", names=[
+                          "id", "contig", "old_name", "Sstart", "Send", "Direction", "Gene_score", "rbs_score"], index_col=False)
+        PHANOTATE = pd.read_csv(contig_list[i][5], sep="\t", names=[
+                                "id", "Sstart", "Send", "Direction", "contig", "Gene_score"], index_col=False)
+        Prodigal = pd.read_csv(contig_list[i][6], sep="\t", names=[
+                               "id", "contig", "Sstart", "Send", "Gene_score", "Direction"], index_col=False)
+        df = pd.read_csv(clusters[i], sep="\t")
 
         # normalise the genescores
         print(f"{col.colours.BPurple}Normalising Gene Scores based on highest value{col.colours.Colour_Off}")
-        GeneMarkS2["normalised_gene_score"] = GeneMarkS2["Gene_score"]/max(GeneMarkS2["Gene_score"])
-        GeneMarkS["normalised_gene_score"] = GeneMarkS["Gene_score"]/max(GeneMarkS["Gene_score"])
-        Glimmer["normalised_gene_score"] = Glimmer["Gene_score"]/max(Glimmer["Gene_score"])
+        GeneMarkS2["normalised_gene_score"] = GeneMarkS2["Gene_score"] / \
+            max(GeneMarkS2["Gene_score"])
+        GeneMarkS["normalised_gene_score"] = GeneMarkS["Gene_score"] / \
+            max(GeneMarkS["Gene_score"])
+        Glimmer["normalised_gene_score"] = Glimmer["Gene_score"] / \
+            max(Glimmer["Gene_score"])
         MGA["normalised_gene_score"] = MGA["Gene_score"]/max(MGA["Gene_score"])
-        Prodigal["normalised_gene_score"] = Prodigal["Gene_score"]/max(Prodigal["Gene_score"])
-        PHANOTATE["normalised_gene_score"] = PHANOTATE["Gene_score"]/min(PHANOTATE["Gene_score"])
+        Prodigal["normalised_gene_score"] = Prodigal["Gene_score"] / \
+            max(Prodigal["Gene_score"])
+        PHANOTATE["normalised_gene_score"] = PHANOTATE["Gene_score"] / \
+            min(PHANOTATE["Gene_score"])
 
         # merge all the DFs together
-        dataframe=[GeneMarkS2, GeneMarkS, Glimmer, MGA, Prodigal, PHANOTATE]
-        test=reduce(lambda x, y: pd.merge(x, y, how='outer'), dataframe)#.merge(GeneMark, how = "outer")
-        final = pd.merge(df, test, on ='id')
-        final["rbs_score"] = 0 # 0 because those without an rbs_score will mess everything up
+        dataframe = [GeneMarkS2, GeneMarkS, Glimmer, MGA, Prodigal, PHANOTATE]
+        test = reduce(lambda x, y: pd.merge(x, y, how='outer'),
+                      dataframe)  # .merge(GeneMark, how = "outer")
+        final = pd.merge(df, test, on='id')
+        # 0 because those without an rbs_score will mess everything up
+        final["rbs_score"] = 0
 
         print(f"{col.colours.BGreen}Calculating Gene Length{col.colours.Colour_Off}")
         # Calculate gene length because Glimmer uses a different system (3bp short)
-        final["length"] = final[["Sstart", "Send"]].max(axis=1) - final[["Sstart", "Send"]].min(axis=1)
+        final["length"] = final[["Sstart", "Send"]].max(
+            axis=1) - final[["Sstart", "Send"]].min(axis=1)
 
         # Create length Penality
-        print(f"{col.colours.BGreen}Creating a Penality value for Short Genes{col.colours.Colour_Off}")
+        print(
+            f"{col.colours.BGreen}Creating a Penality value for Short Genes{col.colours.Colour_Off}")
         score_bins = [0, 74, 89, 119, 149, 199, 99999]
         penality = [-9, -4, -3, -2, -1, 0]
-        final["length_penality"] = pd.cut(final["length"], score_bins, labels=penality)
+        final["length_penality"] = pd.cut(
+            final["length"], score_bins, labels=penality)
 
         # Create scoring system
         print(f"{col.colours.BGreen}Creating an initial score of each gene to select the best gene within a cluster{col.colours.Colour_Off}")
-        final["score"] = final[["normalised_gene_score", "clstr_size", "length_penality"]].sum(axis = 1) # + final.e_value # create score
-        idx = final.groupby(by=final["clstr"])["score"].transform(max)==final["score"] # grp by cluster keep clstr representative by highest score
-        result_df = final[idx].drop_duplicates(subset=['clstr'], keep='first') # remove duplicate clstr representative if same score
-        result_df.to_csv(clusters[i].split('_Genecallers')[0]+"_result_df.tsv", sep = "\t")
+        final["score"] = final[["normalised_gene_score", "clstr_size", "length_penality"]].sum(
+            axis=1)  # + final.e_value # create score
+        # grp by cluster keep clstr representative by highest score
+        idx = final.groupby(by=final["clstr"])[
+            "score"].transform(max) == final["score"]
+        # remove duplicate clstr representative if same score
+        result_df = final[idx].drop_duplicates(subset=['clstr'], keep='first')
+        result_df.to_csv(clusters[i].split('_Genecallers')[
+                         0]+"_result_df.tsv", sep="\t")
+
 
 def GeneOverlap(prefix, score):
     '''
@@ -350,44 +390,55 @@ def GeneOverlap(prefix, score):
     df_final = pd.DataFrame()
 
     for contig in range(len(contig_list)):
-        print(f"{col.colours.BGreen}Analysing {contig_list[contig].split('_result')[0]}{col.colours.Colour_Off}")
+        print(
+            f"{col.colours.BGreen}Analysing {contig_list[contig].split('_result')[0]}{col.colours.Colour_Off}")
     #    print(f'{col.colours.BBlue}Checking if genes with a cluster size of {len(list_of_datasets) - i} overlap with genes that have a cluster size of {dataset["clstr_size"].iloc[0]}{col.colours.Colour_Off}')
-        result_df = pd.read_csv(contig_list[contig], sep = "\t")
+        result_df = pd.read_csv(contig_list[contig], sep="\t")
 
         result_df["operon"] = 0
         result_df["overlap"] = result_df["length"]*-1
 
-        list_of_datasets = [result_df[result_df["clstr_size"] ==  i ].reset_index(drop=True) for i in reversed([n+1 for n in range(result_df["clstr_size"].max())])]
+        list_of_datasets = [result_df[result_df["clstr_size"] == i].reset_index(
+            drop=True) for i in reversed([n+1 for n in range(result_df["clstr_size"].max())])]
         for i in range(len(list_of_datasets)):
-            print(f"""{col.colours.BGreen}Analysing consenus {list_of_datasets[i]["clstr_size"][0]}{col.colours.Colour_Off}""")
+            print(
+                f"""{col.colours.BGreen}Analysing consenus {list_of_datasets[i]["clstr_size"][0]}{col.colours.Colour_Off}""")
             while list_of_datasets[i].empty:
                 break
             else:
                 for INDEX, ROW in list_of_datasets[i].iterrows():
                     for dataset in list_of_datasets[i:]:
                         for index, row in dataset.iterrows():
-                            range1 = pd.Index(range(list_of_datasets[i][["Sstart", "Send"]].min(axis=1)[INDEX], list_of_datasets[i][["Sstart", "Send"]].max(axis=1)[INDEX]))
-                            range2 = pd.Index(range(dataset[["Sstart", "Send"]].min(axis=1)[index], dataset[["Sstart", "Send"]].max(axis=1)[index]))
-                            if len(range1.intersection(range2)) == [4,8]:
+                            range1 = pd.Index(range(list_of_datasets[i][["Sstart", "Send"]].min(axis=1)[
+                                              INDEX], list_of_datasets[i][["Sstart", "Send"]].max(axis=1)[INDEX]))
+                            range2 = pd.Index(range(dataset[["Sstart", "Send"]].min(axis=1)[
+                                              index], dataset[["Sstart", "Send"]].max(axis=1)[index]))
+                            if len(range1.intersection(range2)) == [4, 8]:
                                 dataset["operon"][index] += 1
                             elif list_of_datasets[i][["Sstart", "Send"]].min(axis=1)[INDEX] == dataset[["Sstart", "Send"]].max(axis=1)[index]:
                                 dataset["operon"][index] += 1
                             elif list_of_datasets[i][["Sstart", "Send"]].max(axis=1)[INDEX] == dataset[["Sstart", "Send"]].min(axis=1)[index]:
                                 dataset["operon"][index] += 1
                             else:
-                                dataset["overlap"][index] += len(range1.intersection(range2))
-        results_df = reduce(lambda x,y: pd.merge(x,y, how='outer'), list_of_datasets)
-        print(f"{col.colours.BGreen}Analysing {contig_list[contig].split('_result')[0]} done!{col.colours.Colour_Off}")
+                                dataset["overlap"][index] += len(
+                                    range1.intersection(range2))
+        results_df = reduce(lambda x, y: pd.merge(
+            x, y, how='outer'), list_of_datasets)
+        print(
+            f"{col.colours.BGreen}Analysing {contig_list[contig].split('_result')[0]} done!{col.colours.Colour_Off}")
 
         # Create a an overlap scoring bin
-        print(f"{col.colours.BGreen}Penalising genes that overlap{col.colours.Colour_Off}")
+        print(
+            f"{col.colours.BGreen}Penalising genes that overlap{col.colours.Colour_Off}")
         score_bins = [-999999, 10, 40, 70, 100, 999999]
         penality = [0, -1, -2, -3, -9]
-        results_df["overlap_pen"] = pd.cut(results_df["overlap"], score_bins, labels=penality)
+        results_df["overlap_pen"] = pd.cut(
+            results_df["overlap"], score_bins, labels=penality)
 
         # Create a total scoring system based on the previous scoring system plus the operon and overlap penality
         print(f"{col.colours.BGreen}Creating the final scoring system for representative genes of each cluster{col.colours.Colour_Off}")
-        results_df["total_score"] = results_df[["overlap_pen", "operon", "score"]].sum(axis = 1)
+        results_df["total_score"] = results_df[[
+            "overlap_pen", "operon", "score"]].sum(axis=1)
 
         # Sort the dataframe by gene start
         print(f"{col.colours.BGreen}Mark 1{col.colours.Colour_Off}")
@@ -398,7 +449,8 @@ def GeneOverlap(prefix, score):
         final_df = sorted_df[sorted_df["total_score"] >= score]
 
         # Save the sorted_df to file
-        final_df.to_csv(f"""{contig_list[contig].split('_result')[0]}_{score}_gene_stats.tsv""", sep = "\t", index = None, header = True)
+        final_df.to_csv(
+            f"""{contig_list[contig].split('_result')[0]}_{score}_gene_stats.tsv""", sep="\t", index=None, header=True)
         print(f"{col.colours.BGreen}Mark 3{col.colours.Colour_Off}")
         Genes = f"""rm {contig_list[contig].split('_result')[0]}_contig_seaphages.fna;
             for i in $(cut -f2 {contig_list[contig].split('_result')[0]}_{score}_gene_stats.tsv); do \
@@ -419,8 +471,10 @@ def GeneOverlap(prefix, score):
         print(f"{col.colours.BGreen}Mark 5{col.colours.Colour_Off}")
 
     print(f"{col.colours.BGreen}Only keeping genes with a score higher then {score}{col.colours.Colour_Off}")
-    df_sorted.to_csv(f"""{prefix}_all_scores_gene_stats.tsv""", sep = "\t", index = None, header = True)
-    df_final.to_csv(f"""{prefix}_{score}_gene_stats.tsv""", sep = "\t", index = None, header = True)
+    df_sorted.to_csv(f"""{prefix}_all_scores_gene_stats.tsv""",
+                     sep="\t", index=None, header=True)
+    df_final.to_csv(f"""{prefix}_{score}_gene_stats.tsv""",
+                    sep="\t", index=None, header=True)
 
     print(f"{col.colours.BGreen}Gene statistics can be found here: {prefix}_gene_stats.tsv{col.colours.Colour_Off}")
 
@@ -430,10 +484,12 @@ def GeneOverlap(prefix, score):
 
 
 def execute(bash):
-    process = subprocess.Popen(bash, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    process = subprocess.Popen(bash, stdin=subprocess.PIPE,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     (stdout, stderr) = process.communicate()
 
-    print(stdout.decode("utf-8"), stderr.decode("utf-8")) # this should go to a log file instead
+    # this should go to a log file instead
+    print(stdout.decode("utf-8"), stderr.decode("utf-8"))
     return stdout, stderr
 
 
@@ -445,6 +501,7 @@ def main(args):
     combineGeneClusters()
     GeneOverlap(args.prefix, args.score)
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     args = my_args()
     main(args)
